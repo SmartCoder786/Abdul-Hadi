@@ -22,6 +22,7 @@ export default function App() {
   ]);
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+  const [userAddress, setUserAddress] = useState('');
 
   const [orderSlip, setOrderSlip] = useState<{
     items: CartItem[];
@@ -30,6 +31,8 @@ export default function App() {
     discountAmount: number;
     appliedVoucher: Voucher | null;
     wonVoucher: Voucher | null;
+    address: string;
+    deliveryTimeMins: number;
     date: Date;
     orderId: string;
   } | null>(null);
@@ -87,6 +90,10 @@ export default function App() {
 
   const checkout = () => {
     if (cart.length === 0) return;
+    if (!userAddress.trim()) {
+      alert('Please enter your delivery address.');
+      return;
+    }
     setActiveTab('admin_notification');
   };
 
@@ -124,12 +131,15 @@ export default function App() {
       discountAmount,
       appliedVoucher,
       wonVoucher,
+      address: userAddress,
+      deliveryTimeMins: 10,
       date: new Date(),
       orderId: Math.random().toString(36).substring(2, 9).toUpperCase()
     });
     
     setCart([]);
     setAppliedVoucher(null);
+    setUserAddress('');
     setActiveTab('receipt');
   };
 
@@ -312,6 +322,16 @@ export default function App() {
                       </div>
                     )}
 
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Delivery Address</label>
+                      <textarea 
+                        value={userAddress}
+                        onChange={(e) => setUserAddress(e.target.value)}
+                        placeholder="Enter your full address here..."
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none h-20 shadow-sm"
+                      />
+                    </div>
+
                     <div className="flex justify-between font-black text-xl text-slate-800 pt-4 border-t-2 border-slate-800 mt-2">
                       <span>TOTAL</span>
                       <span>Rs. {finalTotal}</span>
@@ -341,6 +361,9 @@ export default function App() {
                   <BellRing className="w-10 h-10 text-orange-400 animate-bounce" />
                 </div>
                 <h2 className="text-2xl font-black mb-2">Incoming Order!</h2>
+                <div className="bg-emerald-500/20 text-emerald-400 text-xs font-mono py-1 px-3 rounded-full inline-block border border-emerald-500/30 mb-4">
+                  📱 Alert sent to: 03366832389
+                </div>
                 <p className="text-slate-400 text-sm mb-6">You received a new order. Please review and accept it.</p>
                 
                 <div className="bg-slate-900/50 rounded-2xl p-4 mb-8 text-left border border-slate-700">
@@ -356,6 +379,10 @@ export default function App() {
                       </span>
                     </div>
                   )}
+                  <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-800">
+                    <span className="text-slate-400 font-medium">Address</span>
+                    <span className="font-medium text-right max-w-[150px] truncate" title={userAddress}>{userAddress}</span>
+                  </div>
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-slate-400 font-medium">Revenue</span>
                     <span className="font-black text-xl text-emerald-400">Rs. {finalTotal}</span>
@@ -387,6 +414,14 @@ export default function App() {
                   </div>
                   <h2 className="text-xl font-black text-slate-800">Order Slip</h2>
                   <p className="text-xs text-slate-400 font-mono">#{orderSlip.orderId} - {orderSlip.date.toLocaleDateString()}</p>
+                </div>
+
+                <div className="bg-white border border-emerald-100 rounded-2xl p-4 mb-6 shadow-sm">
+                  <p className="text-emerald-600 font-bold mb-1 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> Order Accepted!
+                  </p>
+                  <p className="text-slate-600 text-sm">Delivery in approx. <span className="font-bold text-orange-500">{orderSlip.deliveryTimeMins} minutes</span></p>
+                  <p className="text-slate-400 text-xs mt-2 truncate">To: {orderSlip.address}</p>
                 </div>
 
                 <div className="space-y-3 font-mono text-xs mb-6">
