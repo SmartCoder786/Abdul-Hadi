@@ -1,16 +1,35 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Store, ReceiptText, Gift, Plus, Minus, Trash2, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, Store, ReceiptText, Gift, Plus, Minus, Trash2, ArrowLeft, BellRing, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PRODUCTS, Category, CartItem } from './data';
 
+interface Voucher {
+  code: string;
+  amount?: number;
+  percentage?: number;
+  used: boolean;
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'shop' | 'cart' | 'receipt'>('shop');
+  const [activeTab, setActiveTab] = useState<'shop' | 'cart' | 'admin_notification' | 'receipt'>('shop');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
+  
+  // Voucher states
+  const [availableVouchers, setAvailableVouchers] = useState<Voucher[]>([
+    { code: 'HELLO100', amount: 100, used: false },
+    { code: 'OFF10', percentage: 10, used: false }
+  ]);
+  const [voucherInput, setVoucherInput] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+
   const [orderSlip, setOrderSlip] = useState<{
     items: CartItem[];
     total: number;
-    voucherAmount: number | null;
+    subtotal: number;
+    discountAmount: number;
+    appliedVoucher: Voucher | null;
+    wonVoucher: Voucher | null;
     date: Date;
     orderId: string;
   } | null>(null);
@@ -25,6 +44,18 @@ export default function App() {
   const cartTotal = useMemo(() => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   }, [cart]);
+
+  const discountAmount = useMemo(() => {
+    if (!appliedVoucher) return 0;
+    if (appliedVoucher.percentage) {
+      return Math.floor(cartTotal * (appliedVoucher.percentage / 100));
+    }
+    return Math.min(cartTotal, appliedVoucher.amount || 0);
+  }, [cartTotal, appliedVoucher]);
+
+  const finalTotal = useMemo(() => {
+    return Math.max(0, cartTotal - discountAmount);
+  }, [cartTotal, discountAmount]);
 
   const cartItemCount = useMemo(() => {
     return cart.reduce((count, item) => count + item.quantity, 0);
@@ -56,25 +87,49 @@ export default function App() {
 
   const checkout = () => {
     if (cart.length === 0) return;
+    setActiveTab('admin_notification');
+  };
 
-    // Random voucher logic: 30% chance to win a voucher between 500 and 1000
-    const getsVoucher = Math.random() < 0.3;
-    let voucherAmount = null;
+  const applyVoucherCode = () => {
+    const v = availableVouchers.find(x => x.code.toUpperCase() === voucherInput.toUpperCase() && !x.used);
+    if (v) {
+      setAppliedVoucher(v);
+      setVoucherInput('');
+    } else {
+      alert('Invalid or already used voucher.');
+    }
+  };
+
+  const acceptOrder = () => {
+    // Mark voucher used if applicable
+    if (appliedVoucher) {
+      setAvailableVouchers(prev => prev.map(v => v.code === appliedVoucher.code ? { ...v, used: true } : v));
+    }
+
+    // Random voucher logic: 50% chance to win a voucher between 5% and 20% off
+    const getsVoucher = Math.random() < 0.5;
+    let wonVoucher: Voucher | null = null;
+    
     if (getsVoucher) {
-      voucherAmount = Math.floor(Math.random() * (1000 - 500 + 1)) + 500;
-      // Round to nearest 50
-      voucherAmount = Math.round(voucherAmount / 50) * 50;
+      const voucherPercentage = Math.floor(Math.random() * (20 - 5 + 1)) + 5; // 5 to 20
+      const newVoucherCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      wonVoucher = { code: newVoucherCode, percentage: voucherPercentage, used: false };
+      setAvailableVouchers(prev => [...prev, wonVoucher!]);
     }
 
     setOrderSlip({
       items: [...cart],
-      total: cartTotal,
-      voucherAmount,
+      total: finalTotal,
+      subtotal: cartTotal,
+      discountAmount,
+      appliedVoucher,
+      wonVoucher,
       date: new Date(),
       orderId: Math.random().toString(36).substring(2, 9).toUpperCase()
     });
     
     setCart([]);
+    setAppliedVoucher(null);
     setActiveTab('receipt');
   };
 
@@ -87,7 +142,7 @@ export default function App() {
             <Store className="w-6 h-6" />
             <h1 className="font-display font-extrabold text-xl tracking-tight text-emerald-900">Mini <span className="text-orange-500 underline underline-offset-4 decoration-2">Market</span></h1>
           </div>
-          {activeTab !== 'receipt' && (
+          {activeTab !== 'receipt' && activeTab !== 'admin_notification' && (
             <button 
               onClick={() => setActiveTab(activeTab === 'shop' ? 'cart' : 'shop')}
               className="relative p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-xl transition-colors"
@@ -220,23 +275,101 @@ export default function App() {
                   </div>
 
                   <div className="mt-2 bg-slate-50 p-6 rounded-3xl border-2 border-dashed border-slate-200">
+                    {/* Voucher Section */}
+                    <div className="mb-6 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Voucher Code (e.g. HELLO100)"
+                        value={voucherInput}
+                        onChange={(e) => setVoucherInput(e.target.value)}
+                        className="flex-1 bg-transparent px-3 py-2 text-sm outline-none uppercase font-mono placeholder:normal-case placeholder:font-sans"
+                      />
+                      <button 
+                        onClick={applyVoucherCode}
+                        className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-emerald-200 hover:bg-emerald-600 transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+
                     <div className="flex justify-between font-mono text-sm text-slate-500 mb-3">
                       <span>Subtotal</span>
                       <span className="text-slate-800 font-semibold">Rs. {cartTotal}</span>
                     </div>
+
+                    {appliedVoucher && (
+                      <div className="flex justify-between font-mono text-sm text-orange-500 mb-3">
+                        <span className="flex items-center gap-1 mt-0.5">
+                          Voucher ({appliedVoucher.code})
+                          <button 
+                            onClick={() => setAppliedVoucher(null)} 
+                            className="bg-orange-100/50 text-orange-600 rounded-full w-4 h-4 flex items-center justify-center ml-1 pb-0.5"
+                          >×</button>
+                        </span>
+                        <span className="font-semibold">
+                          - Rs. {discountAmount} {appliedVoucher.percentage && `(${appliedVoucher.percentage}%)`}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between font-black text-xl text-slate-800 pt-4 border-t-2 border-slate-800 mt-2">
                       <span>TOTAL</span>
-                      <span>Rs. {cartTotal}</span>
+                      <span>Rs. {finalTotal}</span>
                     </div>
                     <button 
                       onClick={checkout}
                       className="w-full mt-6 py-4 bg-emerald-500 text-white font-black text-lg rounded-3xl shadow-xl shadow-emerald-100 hover:bg-emerald-600 active:scale-95 transition-all"
                     >
-                      Place Order Now
+                      Wait & Place Order
                     </button>
                   </div>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {activeTab === 'admin_notification' && (
+            <motion.div 
+              key="admin"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="py-12 flex flex-col items-center justify-center min-h-[60vh]"
+            >
+              <div className="bg-slate-800 text-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-yellow-400 animate-pulse"></div>
+                <div className="w-20 h-20 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <BellRing className="w-10 h-10 text-orange-400 animate-bounce" />
+                </div>
+                <h2 className="text-2xl font-black mb-2">Incoming Order!</h2>
+                <p className="text-slate-400 text-sm mb-6">You received a new order. Please review and accept it.</p>
+                
+                <div className="bg-slate-900/50 rounded-2xl p-4 mb-8 text-left border border-slate-700">
+                  <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-800">
+                    <span className="text-slate-400 font-medium">Items</span>
+                    <span className="font-bold">{cartItemCount} qty</span>
+                  </div>
+                  {appliedVoucher && (
+                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-800">
+                      <span className="text-slate-400 font-medium">Discount</span>
+                      <span className="font-bold text-orange-400">
+                        -Rs. {discountAmount} {appliedVoucher.percentage && `(${appliedVoucher.percentage}%)`}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-slate-400 font-medium">Revenue</span>
+                    <span className="font-black text-xl text-emerald-400">Rs. {finalTotal}</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={acceptOrder}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black text-lg py-4 rounded-2xl transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 className="w-6 h-6" />
+                  Accept & Process
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -263,6 +396,12 @@ export default function App() {
                       <span className="font-semibold text-slate-800">{item.price * item.quantity}.00</span>
                     </div>
                   ))}
+                  {orderSlip.discountAmount > 0 && (
+                    <div className="border-t border-slate-200 pt-3 mt-3 flex justify-between font-bold text-orange-600 text-sm">
+                      <span>VOUCHER {orderSlip.appliedVoucher?.code ? `(${orderSlip.appliedVoucher.code})` : ''}</span>
+                      <span>- Rs. {orderSlip.discountAmount}.00</span>
+                    </div>
+                  )}
                   <div className="border-t-2 border-slate-800 pt-3 mt-3 flex justify-between text-base font-black text-slate-800">
                     <span>TOTAL</span>
                     <span>Rs. {orderSlip.total}.00</span>
@@ -276,7 +415,7 @@ export default function App() {
                   <p className="text-[10px] text-white/60 mt-2 uppercase tracking-widest italic font-medium">Thank you for shopping</p>
                 </div>
 
-                {orderSlip.voucherAmount && (
+                {orderSlip.wonVoucher && (
                   <motion.div 
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
@@ -290,9 +429,11 @@ export default function App() {
                       <h2 className="text-xl font-black mb-1">LUCKY VOUCHER! 🎁</h2>
                       <p className="opacity-90 text-sm font-medium mb-4">You just unlocked a surprise gift.</p>
                       <div className="bg-white/20 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/30 inline-block">
-                        <span className="text-3xl font-black px-2">- Rs. {orderSlip.voucherAmount}</span>
+                        <span className="text-3xl font-black px-2">
+                           {orderSlip.wonVoucher.percentage ? `${orderSlip.wonVoucher.percentage}% OFF` : `Rs. ${orderSlip.wonVoucher.amount} OFF`}
+                        </span>
                       </div>
-                      <p className="font-mono text-xs text-orange-100 mt-4 opacity-80 uppercase tracking-widest">Code: {Math.random().toString(36).substring(2, 8).toUpperCase()}</p>
+                      <p className="font-mono text-xs text-orange-100 mt-4 opacity-80 uppercase tracking-widest">Code: {orderSlip.wonVoucher.code}</p>
                     </div>
                   </motion.div>
                 )}
