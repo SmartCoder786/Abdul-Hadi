@@ -1,0 +1,6 @@
+{
+  "name": "Mini Market",
+  "description": "A mini market application with grocery, vegetable, and fruit items, order processing, and random voucher generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
